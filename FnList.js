@@ -546,30 +546,31 @@ function shuffle( a, cyclic, a0, a1 )
 {
     // http://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle
     // https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle#Sattolo.27s_algorithm
-    var rndInt = FnList.rndInt, N, perm, swap, offset = true === cyclic ? 1 : 0, inc;
+    var rndInt = FnList.rndInt, N, offset = true === cyclic ? 1 : 0;
+    // O(n)
     if ( is_array(a0) )
     {
-        inc = a0; N = inc.length;
-        while ( offset < N-- )
-        { 
-            perm = rndInt( 0, N-offset ); 
-            swap = a[ inc[N] ]; 
-            a[ inc[N] ] = a[ inc[perm] ]; 
-            a[ inc[perm] ] = swap; 
-        }
+        if ( 1 < (N=a0.length) ) operate(function(a){
+            if ( offset < N-- )
+            {
+                var perm = rndInt(0, N-offset), swap = a[ a0[N] ]; 
+                a[ a0[N] ] = a[ a0[perm] ]; a[ a0[perm] ] = swap; 
+            }
+            return a;
+        }, a, a0, 0, N-1);
     }
     else
     {
         if ( null == a0 ) a0 = 0;
         if ( null == a1 ) a1 = a.length-1;
-        N = a1-a0+1;
-        while ( offset < N-- )
-        { 
-            perm = rndInt( 0, N-offset ); 
-            swap = a[ a0+N ]; 
-            a[ a0+N ] = a[ a0+perm ]; 
-            a[ a0+perm ] = swap; 
-        }
+        if ( 1 < (N=a1-a0+1) ) operate(function(a){
+            if ( offset < N-- )
+            {
+                var perm = rndInt(0, N-offset), swap = a[ a0+N ]; 
+                a[ a0+N ] = a[ a0+perm ]; a[ a0+perm ] = swap; 
+            }
+            return a;
+        }, a, a, 0, N-1);
     }
     return a;
 }
@@ -578,8 +579,7 @@ function pick( a, k, sorted, repeated, backup, a0, a1 )
     // http://stackoverflow.com/a/32035986/3591273
     if ( null == a0 ) a0 = 0;
     if ( null == a1 ) a1 = a.length-1;
-    var rndInt = FnList.rndInt,
-        picked, i, selected, value, n = a1-a0+1;
+    var rndInt = FnList.rndInt, picked, i, selected, value, n = a1-a0+1;
     k = stdMath.min( k, n );
     sorted = true === sorted;
     
