@@ -1,7 +1,7 @@
 /**
 *
-*   FnList.js
-*   Efficient methods for processing lists/sets/vectors/strings or arbitrary range of numbers
+*   FnList
+*   Efficient (functional) methods for processing lists/sets/vectors/strings or arbitrary range of numbers
 *   @version: 1.0.0
 *   https://github.com/foo123/FnList.js
 **/
@@ -89,6 +89,8 @@ Node.walk = function walk( scheme, node, process ) {
 
 function operate( F, F0, x, i0, i1, ik, strict )
 {
+    // http://jsperf.com/functional-loop-unrolling/2
+    // http://jsperf.com/functional-loop-unrolling/3
     var Fv = F0, i, ii, ikk, di, i0r, i00, i11,
         rem, last = null, x_array = x && is_array(x);
     if ( x_array )
@@ -208,7 +210,7 @@ function reverse( a, a0, a1 )
 }
 function gray( b, a, n, a0, a1 )
 { 
-    // adapted from https://en.wikipedia.org/wiki/Gray_code#n-ary_Gray_code
+    // https://en.wikipedia.org/wiki/Gray_code#n-ary_Gray_code
     var s = 0;
     return operate(is_array(n) ? function(b, ai, i){
         b[i] = n[i] > 0 ? (ai + s) % n[i] : 0; s += n[i] - b[i]; return b;
@@ -251,7 +253,7 @@ function psum/*partial_sum*/( b, a, c1, c0, a0, a1 )
         s += ai; b[i] = c0 + c1*s; return b;
     }, b, a, a0, a1);
 }
-function kronecker( /* var args here */ )
+function kronecker/*tensor_product*/( /* var args here */ )
 {
     // https://en.wikipedia.org/wiki/Outer_product
     // https://en.wikipedia.org/wiki/Kronecker_product
@@ -461,8 +463,9 @@ function merge/*union*/( union, a, b, dir, a0, a1, b0, b1, indices, unique, inpl
             }
             else // they're equal, push one unique
             {
-                union[ui++] = last=a[ai];
-                if ( with_duplicates ) union[ui++] = b[bi];
+                // make it stable
+                union[ui++] = last=(a[ai][1] < b[bi][1] ? a[ai] : b[bi]);
+                if ( with_duplicates ) union[ui++] = (a[ai][1] < b[bi][1] ? b[bi] : a[ai]);
                 ai+=ak; bi+=bk;
             }
         }
