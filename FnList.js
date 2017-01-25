@@ -464,8 +464,16 @@ function merge/*union*/( union, a, b, dir, a0, a1, b0, b1, indices, unique, inpl
             else // they're equal, push one unique
             {
                 // make it stable
-                union[ui++] = last=(a[ai][1] < b[bi][1] ? a[ai] : b[bi]);
-                if ( with_duplicates ) union[ui++] = (a[ai][1] < b[bi][1] ? b[bi] : a[ai]);
+                if ( a[ai][1] < b[bi][1] )
+                {
+                    union[ui++] = last=a[ai];
+                    if ( with_duplicates ) union[ui++] = b[bi];
+                }
+                else
+                {
+                    union[ui++] = last=b[bi];
+                    if ( with_duplicates ) union[ui++] = a[ai];
+                }
                 ai+=ak; bi+=bk;
             }
         }
@@ -540,7 +548,7 @@ function mergesort( a, dir, indices, a0, a1 )
     {
         operate(function(X,j){
             merge(aux, a, a, dir, a0+ak*j, a0+ak*(j+size-1), a0+ak*(j+size), a0+ak*min(j+size2-1, N-1), indices, false, true);
-        }, null, null, 0, N-size, size2);
+        }, null, null, 0, N-size-1, size2);
         size <<= 1; size2 <<= 1; logN >>= 1;
     }
     return indices ? pluck(a, 1, true) : a;
@@ -748,6 +756,7 @@ FnList = {
 ,pick: pick
 ,pluck: pluck
 ,rndInt: rndInt   
+,Node: Node
 
 };
 
