@@ -464,7 +464,7 @@ function merge/*union*/( union, a, b, dir, a0, a1, b0, b1, indices, unique, inpl
             else // they're equal, push one unique
             {
                 // make it stable
-                if ( a[ai][1] < b[bi][1] )
+                if ( (1===dir && a[ai][1]<b[bi][1]) || (-1===dir && a[ai][1]>b[bi][1]) )
                 {
                     union[ui++] = last=a[ai];
                     if ( with_duplicates ) union[ui++] = b[bi];
