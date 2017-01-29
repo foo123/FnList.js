@@ -22,15 +22,16 @@ else if ( !(name in root) ) /* Browser/WebWorker/.. */
     /* module factory */        function ModuleFactory__FnList( undef ){
 "use strict";
 
-var stdMath = Math, HAS = Object[PROTO].hasOwnProperty, toString = Object[PROTO].toString,
+var stdMath = Math, HAS = Object.prototype.hasOwnProperty, toString = Object.prototype.toString,
     FnList;
 
 // utility methods
 function is_array( x ) { return (x instanceof Array) || ('[object Array]' === toString.call(x)); }
 function is_string( x ) { return (x instanceof String) || ('[object String]' === toString.call(x)); }
 function rndInt( m, M ) { return stdMath.round( (M-m)*stdMath.random( ) + m ); }
-function addn( s, a ) { return s+a; }
-function muln( p, a ) { return p*a; }
+function addn( s, x ) { return s+x; }
+function muln( p, x ) { return p*x; }
+function swap( a, i, j, t ) { t=a[i]; a[i]=a[j]; a[j]=t; return a; }
 
 function Node( k, v, p, n, l, r, d )
 {
@@ -195,17 +196,47 @@ function product( x, i0, i1, ik )
 {
     return operate(muln, 1, x, i0, i1, ik);
 }
-function pluck( a, k, inplace )
+function pluck( b, a, k )
 {
     return operate(function(b, ai, i){
         b[i] = ai[k]; return b;
-    }, true === inplace ? a : new Array(a.length), a);
+    }, b, a);
 }
-function reverse( a, a0, a1 )
+function reflect( b, a, a0, a1 )
 {
     if ( null == a0 ) a0 = 0;
     if ( null == a1 ) a1 = a.length-1;
-    if ( a0 < a1 ) for(var t,l=a0,r=a1; l<r; l++,r--) { t = a[l]; a[l] = a[r]; a[r] = t; }
+    if ( a0 < a1 ) for(var t,l=a0,r=a1; l<r; l++,r--) { t = a[l]; b[l] = a[r]; b[r] = t; }
+    return b;
+}
+function rotate( a, m, a0, a1 )
+{
+    // http://codinghelmet.com/?path=exercises/rotating-array
+    var n = a.length, nn, dir = -1/* rotate left */, p, p2, nm, t;
+    if ( null == a0 ) a0 = 0;
+    if ( null == a1 ) a1 = n-1;
+    nn = a1-a0+1;
+    if ( 0 > m ){ m = -m; dir = -dir; /* rotate right */}
+    p = a0;
+    while(0 < m && m < nn )
+    {
+        p2 = p + nn - m; nm = m;
+        if ( m+m > nn )
+        {
+            p2 = p + m;
+            nm = nn - m;
+        }
+        operate(function(a,i){return swap(a, p+i, p2+i);}, a, null, 0, nm-1, 1);
+        if ( m+m <= n )
+        {
+            nn -= m;
+        }
+        else
+        {
+            p += nn - m;
+            t = m; m = m+m-nn; nn = t;
+        }
+    }
     return a;
 }
 function gray( b, a, n, a0, a1 )
@@ -235,22 +266,32 @@ function affine( b, a, c1, c0, a0, a1 )
         b[i] = c0 + c1*ai; return b;
     }, b, a, a0, a1);
 }
-function fdiff/*finite_difference*/( b, a, c1, c0, a0, a1 )
+function fdiff/*finite_difference*/( b, a, c1, c0, a0, a1, b0, b1 )
 {
+    if ( null == a ) return null;
     if ( null == c1 ) c1 = 1;
     if ( null == c0 ) c0 = 0;
-    var d0 = 0;
+    if ( null == a0 ) a0 = 0;
+    if ( null == a1 ) a1 = a.length-1;
+    if ( null == b0 ) b0 = a0;
+    if ( null == b1 ) b1 = a1;
+    var d0 = 0, bk = b0 > b1 ? -1 : 1, bi = b0;
     return operate(function(b, ai, i){
-        b[i] = c0 + c1*(ai-d0); d0 = ai; return b;
+        ai=c0+c1*ai; b[bi] = ai-d0; d0 = ai; bi+=bk; return b;
     }, b, a, a0, a1);
 }
-function psum/*partial_sum*/( b, a, c1, c0, a0, a1 )
+function psum/*partial_sum*/( b, a, c1, c0, a0, a1, b0, b1 )
 {
+    if ( null == a ) return null;
     if ( null == c1 ) c1 = 1;
     if ( null == c0 ) c0 = 0;
-    var s = 0;
+    if ( null == a0 ) a0 = 0;
+    if ( null == a1 ) a1 = a.length-1;
+    if ( null == b0 ) b0 = a0;
+    if ( null == b1 ) b1 = a1;
+    var s = 0, bk = b0 > b1 ? -1 : 1, bi = b0;
     return operate(function(b, ai, i){
-        s += ai; b[i] = c0 + c1*s; return b;
+        s+=ai; b[bi] = c0+c1*s; bi+=bk; return b;
     }, b, a, a0, a1);
 }
 function kronecker/*tensor_product*/( /* var args here */ )
@@ -331,6 +372,7 @@ function intersection( comm, a, b, dir, a0, a1, b0, b1 )
     
     // O(min(al,bl))
     // assume lists are already sorted ascending/descending (indepentantly)
+    // see also http://codinghelmet.com/?path=exercises/array-intersection
     while( (0 <= ak*(a1-ai)) && (0 <= bk*(b1-bi)) )
     {
         if      ( (1===dir && a[ai]<b[bi]) || (-1===dir && a[ai]>b[bi]) )
@@ -516,7 +558,7 @@ function merge/*union*/( union, a, b, dir, a0, a1, b0, b1, indices, unique, inpl
     if ( inplace )
     {
         // move the merged back to the a array
-        for(ai=a0,ui=0; ui<ul; ui++,ai+=ak) a[ai] = union[ui];
+        for(ai=0>ak?a1:a0,ui=0; ui<ul; ui++,ai++) a[ai] = union[ui];
         return a;
     }
     else
@@ -526,45 +568,325 @@ function merge/*union*/( union, a, b, dir, a0, a1, b0, b1, indices, unique, inpl
         return union;
     }
 }
-function mergesort( a, dir, indices, a0, a1 )
+function partition( a, ip, i0, i1 )
 {
-    // http://en.wikipedia.org/wiki/Merge_sort
+    var n = a.length, pivot, index, i, t;
+    if ( null == i0 ) i0 = 0;
+    if ( null == i1 ) i1 = n-1;
+    pivot = a[ip];
+    t = a[ip]; a[ip] = a[i1]; a[i1] = t;
+    index = i0;
+    for(i=i0; i<i1; i++)  // i0 ≤ i < i1
+    {
+        if ( a[i] <= pivot )
+        {
+            t = a[i]; a[i] = a[index]; a[index] = t;
+            index++;
+        }
+    }
+    t = a[index]; a[index] = a[i1]; a[i1] = t;
+    return index;
+}
+function sortedrun( a, a0, a1, index, indices )
+{
+    // findout already sorted chunks either ascending or descending
+    var ap, ai, i, i0, i1, d0, i2, i3, d1;
+    index[0] = -1; index[1] = -1; index[2] = 0;
+    index[3] = -1; index[4] = -1; index[5] = 0;
+    d0 = 0; d1 = 0;
+    i0 = a0; i1 = -1;
+    for(ap=indices?a[i0][0]:a[i0],i=i0+1; i<=a1; i++)
+    {
+        ai = indices?a[i][0]:a[i];
+        if ( ap < ai )
+        {
+            if ( -1 === d0 ) { i1 = i-1; break; }
+            else if ( 0 === d0 ) d0 = 1;
+        }
+        else if ( ap > ai )
+        {
+            if ( 1 === d0 ) { i1 = i-1; break; }
+            else if ( 0 === d0 ) d0 = -1;
+        }
+        ap = ai;
+    }
+    if ( 0 === d0 ) d0 = 1;
+    if ( -1 === i1 )
+    {
+        i1 = a1; index[0] = i0; index[1] = i1; index[2] = d0;
+    }
+    else
+    {
+        i2 = i1+1; i3 = -1;
+        for(ap=indices?a[i2][0]:a[i2],i=i2+1; i<=a1; i++)
+        {
+            ai = indices?a[i][0]:a[i];
+            if ( ap < ai )
+            {
+                if ( -1 === d1 ) { i3 = i-1; break; }
+                else if ( 0 === d1 ) d1 = 1;
+            }
+            else if ( ap > ai )
+            {
+                if ( 1 === d1 ) { i3 = i-1; break; }
+                else if ( 0 === d1 ) d1 = -1;
+            }
+            ap = ai;
+        }
+        if ( -1 === i3 ) i3 = a1;
+        if ( 0 === d1 ) d1 = 1;
+        index[0] = i0; index[1] = i1; index[2] = d0;
+        index[3] = i2; index[4] = i3; index[5] = d1;
+    }
+}
+function mergesort/*naturalmergesort*/( a, dir, indices, a0, a1 )
+{
+    // Natutal http://en.wikipedia.org/wiki/Merge_sort
     if ( null == a0 ) a0 = 0;
     if ( null == a1 ) a1 = a.length-1;
-    var ak = a0 > a1 ? -1 : 1, N = ak*(a1-a0)+1;
     indices = true === indices;
     // in-place
-    if ( 1 >= N ) return indices ? (1 === N ? [a0] : []) : a;
-    dir = -1 === dir ? -1 : 1;
-    var logN = N, j, n, b, size = 1, size2 = 2, min = stdMath.min, aux = new Array(N);
+    if ( a0 >= a1 ) return indices ? (a0 === a1 ? [a0] : []) : a;
+    var N = a1-a0+1, aux = new Array(N),  index = [-1,-1,0,-1,-1,0], i0, i1, i0p, i1p;
     if ( indices )
     {
-        j = a0; b = new Array(N);
-        a = operate(function(b,bi,i){b[i]=[a[j],j]; j+=ak; return b;}, b, b);
-        a0 = 0; a1 = N-1; ak = 1;
+        a = operate(function(b,ai,i){b[i-a0]=[ai,i]; return b;}, new Array(N), a, a0, a1, 1);
+        a0 = 0; a1 = N-1;
     }
-    // O(NlgN)
-    while( 0 < logN )
-    {
-        operate(function(X,j){
-            merge(aux, a, a, dir, a0+ak*j, a0+ak*(j+size-1), a0+ak*(j+size), a0+ak*min(j+size2-1, N-1), indices, false, true);
-        }, null, null, 0, N-size-1, size2);
-        size <<= 1; size2 <<= 1; logN >>= 1;
-    }
-    return indices ? pluck(a, 1, true) : a;
+    // O(N) average, O(NlgN) worst case
+    i0p = a0; i1p = -1;
+    dir = -1 === dir ? -1 : 1;
+    do{
+        // find already sorted chunks
+        // O(n)
+        sortedrun(a, a0, a1, index, indices);
+        if ( -1 === index[3] )
+        {
+            // already sorted, reflect if sorted reversely
+            // O(n)
+            if ( dir !== index[2] && a0 < a1 ) reflect(a, a, a0, a1);
+            i0 = a0; i1 = a1;
+        }
+        else
+        {
+            // merge partialy sorted chunks appropriately into one run
+            // O(n)
+            index[2] *= dir; index[5] *= dir;
+            merge(aux, a, a, dir, 0>index[2]?index[1]:index[0], 0>index[2]?index[0]:index[1], 0>index[5]?index[4]:index[3], 0>index[5]?index[3]:index[4], indices, false, true);
+            i0 = index[0]; i1 = index[4];
+        }
+        // merge with the previous run
+        // O(n)
+        if ( -1 !== i1p ) merge(aux, a, a, dir, i0p, i1p, i0, i1, indices, false, true);
+        // update starting point for next chunk
+        i1p = i1; a0 = i1+1;
+    }while( a0 <= a1 );
+    return indices ? pluck(a, a, 1) : a;
 }
-function shuffle( a, cyclic, a0, a1 )
+function partition_indexed( a, ip, i0, i1 )
+{
+    var pivot = a[ip][0], index = i0, i, t;
+    t = a[ip]; a[ip] = a[i1]; a[i1] = t;
+    for(i=i0; i<i1; i++)  // i0 ≤ i < i1
+    {
+        if ( a[i][0] <= pivot )
+        {
+            t = a[i]; a[i] = a[index]; a[index] = t;
+            index++;
+        }
+    }
+    t = a[index]; a[index] = a[i1]; a[i1] = t;
+    return index;
+}
+function mergesort_indexed( a, dir, a0, a1 )
+{
+    // Natutal http://en.wikipedia.org/wiki/Merge_sort
+    if ( null == a0 ) a0 = 0;
+    if ( null == a1 ) a1 = a.length-1;
+    // in-place
+    if ( a0 >= a1 ) return a;
+    var N = a1-a0+1, aux = new Array(N),  index = [-1,-1,0,-1,-1,0], i0, i1, i0p, i1p;
+    // O(N) average, O(NlgN) worst case
+    i0p = a0; i1p = -1;
+    dir = -1 === dir ? -1 : 1;
+    do{
+        // find already sorted chunks
+        // O(n)
+        sortedrun(a, a0, a1, index, true);
+        if ( -1 === index[3] )
+        {
+            // already sorted, reflect if sorted reversely
+            // O(n)
+            if ( dir !== index[2] && a0 < a1 ) reflect(a, a, a0, a1);
+            i0 = a0; i1 = a1;
+        }
+        else
+        {
+            // merge partialy sorted chunks appropriately into one run
+            // O(n)
+            index[2] *= dir; index[5] *= dir;
+            merge(aux, a, a, dir, 0>index[2]?index[1]:index[0], 0>index[2]?index[0]:index[1], 0>index[5]?index[4]:index[3], 0>index[5]?index[3]:index[4], true, false, true);
+            i0 = index[0]; i1 = index[4];
+        }
+        // merge with the previous run
+        // O(n)
+        if ( -1 !== i1p ) merge(aux, a, a, dir, i0p, i1p, i0, i1, true, false, true);
+        // update starting point for next chunk
+        i1p = i1; a0 = i1+1;
+    }while( a0 <= a1 );
+    return a;
+}
+function is_sorted( a, dir, a0, a1 )
+{
+    var i, ap, ai, n = a.length, N;
+    if ( null == a0 ) a0 = 0;
+    if ( null == a1 ) a1 = n-1;
+    // O(n)
+    if ( null == dir || 0 === dir )
+    {
+        // findout if and how it is sorted
+        dir = 0;
+        for(ap=a[a0],i=a0+1; i<=a1; i++)
+        {
+            ai = a[i];
+            if ( ap < ai )
+            {
+                if ( -1 === dir ) return 0;
+                else if ( 0 === dir ) dir = 1;
+            }
+            else if ( ap > ai )
+            {
+                if ( 1 === dir ) return 0;
+                else if ( 0 === dir ) dir = -1;
+            }
+            ap = ai;
+        }
+        return 0 === dir ? 1 : dir;
+    }
+    else
+    {
+        // check that it is sorted by dir
+        dir = -1 === dir ? -1 : 1;
+        if ( a0 >= a1 ) return dir;
+        if ( -1 === dir )
+        {
+            // reverse sorted, descending
+            for(ap=a[a0],i=a0+1; i<=a1; i++)
+            {
+                ai = a[i];
+                if ( ap < ai ) return 0;
+                else ap = ai;
+            }
+        }
+        else
+        {
+            // sorted, ascending
+            for(ap=a[a0],i=a0+1; i<=a1; i++)
+            {
+                ai = a[i];
+                if ( ap > ai ) return 0;
+                else ap = ai;
+            }
+        }
+        return dir;
+    }
+}
+function selectminmax( a, a0, a1, index )
+{
+    // non destructive, can return index of kth order statistic, instead of value
+    // find min/max in O(n)
+    for(var k0=a[a0],k1=a[a0],ik0=a0,ik1=a0,i=a0+1; i<=a1; i++)
+    {
+        if ( a[i] < k0 ) { k0 = a[i]; ik0 = i; }
+        if ( a[i] > k1 ) { k1 = a[i]; ik1 = i; }
+    }
+    return index ? [ik0,ik1] : [k0,k1];
+}
+function selectsorted( a, ks, a0, a1, dir, index )
+{
+    // non destructive, can return index of kth order statistic, instead of value
+    // already sorted
+    var n = a1-a0+1;
+    // reverse sorted
+    if ( 0 > dir )  ks = n-1-ks;
+    // sorted
+    return index ? a0+ks : a[a0+ks];
+}
+function selectkth5( a, ks, a0, a1, index, ia )
+{
+    // non destructive, can return index of kth order statistic, instead of value
+    if ( ia )
+    {
+        mergesort_indexed(ia, 1, a0, a1);
+        return index ? ia[a0+ks][1] : ia[a0+ks][0];
+    }
+    else
+    {
+        var i = mergesort(a, 1, true, a0, a1);
+        //if ( ks >= i.length ) ks = i.length-1;
+        return index ? i[ks] : a[i[ks]];
+    }
+}
+function selectkth( a, ks, a0, a1, index, ia, m, mi )
+{
+    // select fast (~O(n)) the kth item (or range of items) from a (not necessarily sorted) array a using select with median of medians algorithm
+    // (http://www.cs.cornell.edu/courses/cs2110/2009su/Lectures/examples/MedianFinding.pdf)
+    // O(n)
+    var n = a1-a0+1, nby5, nmod5, k, i, mk, medofmed, pivot;
+    
+    // non destructive, can return index of kth order statistic, instead of value
+    if ( 1 >= n ) return index ? a0 : a[a0];
+    if ( null == ia ) ia = array(n, function(i){return [a[a0+i],a0+i];});
+    if ( 5 >= n ) return selectkth5(ia, ks, 0, n-1, index, ia);
+    
+    nmod5 = n%5; nby5 = stdMath.ceil(n/5);
+    if ( null == m ) { m = new Array(nby5); mi = new Array(nby5); }
+    k = 0;
+    if ( 0 < nmod5 )
+    {
+        mk = selectkth5(ia, nmod5>>>1, 0, nmod5-1, 1, ia);
+        m[k] = ia[mk][0]; mi[k] = [m[k], k, mk]; k++;
+    }
+    for(i=nmod5; i<n; i+=5)
+    {
+        mk = selectkth5(ia, 2, i, i+4, 1, ia);
+        m[k] = ia[mk][0]; mi[k] = [m[k], k, mk]; k++;
+    }
+    medofmed = 1 === nby5 ? 0 : selectkth(m, nby5>>>1, 0, nby5-1, 1, mi);
+    pivot = partition_indexed(ia, mi[medofmed][2], 0, n-1);
+    if ( pivot > ks ) return selectkth(a, ks, 0, pivot-1, index, ia, m, mi);
+    else if ( pivot < ks ) return selectkth(a, ks, pivot+1, n-1, index, ia, m, mi);
+    else return index ? ia[pivot][1] : ia[pivot][0];
+}
+function fastselect( a, ks, index, a0, a1 )
+{
+    // select fast from arbitrary list the kth order statistic using the fastest approach depending on input
+    // non destructive, can return index of kth order statistic, instead of value
+    var N = a.length, n, m, dir;
+    if ( null == a0 ) a0 = 0;
+    if ( null == a1 ) a1 = N-1;
+    n = a1-a0+1; ks = stdMath.max(0, stdMath.min(ks, n-1));
+    if ( 0 === ks || n-1 === ks )
+    {
+        // min/max, get it in O(n)
+        m = selectminmax(a, a0, a1, index);
+        return 0 === ks ? m[0] : m[1];
+    }
+    // already sorted? get kth in O(n), else use medianofmedians pivot select in O(6n)
+    return (dir=is_sorted(a,0,a0,a1)) ? selectsorted(a, ks, a0, a1, dir, index) : (5 >= n ? selectkth5(a, ks, a0, a1, index) : selectkth(a, ks, a0, a1, index));
+}
+function shuffle( a, a0, a1 )
 {
     // http://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle
     // https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle#Sattolo.27s_algorithm
-    var rndInt = FnList.rndInt, N, offset = true === cyclic ? 1 : 0;
+    var rndInt = FnList.rndInt, N;
     // O(n)
     if ( is_array(a0) )
     {
         if ( 1 < (N=a0.length) ) operate(function(a){
-            if ( offset < N-- )
+            if ( 0 < N-- )
             {
-                var perm = rndInt(0, N-offset), swap = a[ a0[N] ]; 
+                var perm = rndInt(0, N), swap = a[ a0[N] ]; 
                 a[ a0[N] ] = a[ a0[perm] ]; a[ a0[perm] ] = swap; 
             }
             return a;
@@ -575,9 +897,9 @@ function shuffle( a, cyclic, a0, a1 )
         if ( null == a0 ) a0 = 0;
         if ( null == a1 ) a1 = a.length-1;
         if ( 1 < (N=a1-a0+1) ) operate(function(a){
-            if ( offset < N-- )
+            if ( 0 < N-- )
             {
-                var perm = rndInt(0, N-offset), swap = a[ a0+N ]; 
+                var perm = rndInt(0, N), swap = a[ a0+N ]; 
                 a[ a0+N ] = a[ a0+perm ]; a[ a0+perm ] = swap; 
             }
             return a;
@@ -744,13 +1066,18 @@ FnList = {
 ,modulo: modulo
 ,finitedifference: fdiff
 ,partialsum: psum
-,reverse: reverse
+,reflect: reflect
+,rotate: rotate
 ,kronecker: kronecker
 ,intersection: intersection
 ,difference: difference
 ,union: merge
+,partition: partition
 ,search: binarysearch
 ,sort: mergesort
+,is_sorted: is_sorted
+,select: fastselect
+//,hselect: fasthselect
 ,sorter: sorter
 ,shuffle: shuffle
 ,pick: pick
